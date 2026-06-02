@@ -270,6 +270,8 @@ let roadsideObjects = [];
 let roadsideSpawnTimer = 0;
 let lastRoadsideZ = -20;
 let assetsReady = false;
+let shakeIntensity = 0;
+let audioCtx = null, engineOsc = null, engineGain = null;
 
 // ===== UI REFS =====
 const scoreEl = document.getElementById('score-val');
@@ -676,6 +678,7 @@ function updateParticles(dt) {
 
 // ===== INPUT =====
 document.addEventListener('keydown', function(e) {
+  initAudio();
   var key = e.key;
   if (key === 'ArrowLeft' || key === 'a' || key === 'A') keys.left = true;
   if (key === 'ArrowRight' || key === 'd' || key === 'D') keys.right = true;
@@ -885,6 +888,8 @@ function initScene() {
 function startGame() {
   player = createPlayerCar();
   gameActive = true;
+  initAudio();
+  startEngineSound();
 
   for (var i = 0; i < 5; i++) {
     (function(idx) {
@@ -902,7 +907,15 @@ function startGame() {
 // ===== CAMERA =====
 function updateCamera() {
   var followX = playerCurrentX * 0.3;
-  camera.position.set(followX, 3.8, 9);
+  var shakeX = 0, shakeY = 0;
+  if (shakeIntensity > 0.01) {
+    shakeX = (Math.random() - 0.5) * shakeIntensity * 0.5;
+    shakeY = (Math.random() - 0.5) * shakeIntensity * 0.5;
+    shakeIntensity *= 0.92;
+  } else {
+    shakeIntensity = 0;
+  }
+  camera.position.set(followX + shakeX, 3.8 + shakeY, 9);
   camera.lookAt(followX, 0.2, -2);
 }
 
@@ -945,9 +958,63 @@ function showScorePopup(text, x, z) {
   setTimeout(function() { if (el.parentNode) el.parentNode.removeChild(el); }, 1200);
 }
 
+// ===== EXPLOSION =====
+function createExplosion(x, y, z) {
+  var count = 60;
+  var geo = new THREE.BufferGeometry();
+  var pos = new Float32Array(count * 3);
+  var vel = [];
+  var cols = new Float32Array(count * 3);
+  for (var i = 0; i < count; i++) {
+    pos[i * 3] = x + (Math.random() - 0.5) * 0.5;
+    pos[i * 3 + 1] = y + Math.random() * 0.3;
+    pos[i * 3 + 2] = z + (Math.random() - 0.5) * 0.5;
+    vel.push({
+      x: (Math.random() - 0.5) * 4,
+      y: Math.random() * 3 + 1,
+      z: (Math.random() - 0.5) * 4
+    });
+    var c = new THREE.Color().setHSL(0.05 + Math.random() * 0.1, 1, 0.5 + Math.random() * 0.3);
+    cols[i * 3] = c.r; cols[i * 3 + 1] = c.g; cols[i * 3 + 2] = c.b;
+  }
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+  var mat = new THREE.PointsMaterial({
+    size: 0.3, vertexColors: true, transparent: true, opacity: 1,
+    blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true
+  });
+  var points = new THREE.Points(geo, mat);
+  scene.add(points);
+  var life = 1.0;
+  var explInterval = setInterval(function() {
+    life -= 0.02;
+    if (life <= 0) {
+      clearInterval(explInterval);
+      scene.remove(points);
+      return;
+    }
+    var p = points.geometry.attributes.position.array;
+    for (var i = 0; i < count; i++) {
+      p[i * 3] += vel[i].x * 0.02;
+      p[i * 3 + 1] += vel[i].y * 0.02;
+      p[i * 3 + 2] += vel[i].z * 0.02;
+      vel[i].y -= 2 * 0.02;
+    }
+    points.geometry.attributes.position.needsUpdate = true;
+    points.material.opacity = life;
+    points.scale.setScalar(1 + (1 - life) * 0.5);
+  }, 20);
+}
+
 // ===== GAME OVER =====
 function gameOver() {
   gameActive = false;
+  shakeIntensity = 1.5;
+  if (player) {
+    createExplosion(player.position.x, 0.3, player.position.z);
+    scene.remove(player);
+    player = null;
+  }
   gameOverEl.classList.add('show');
   finalScoreEl.textContent = Math.floor(score);
   if (score > highScore) {
@@ -959,7 +1026,66 @@ function gameOver() {
     finalHighscoreEl.textContent = Math.floor(highScore);
   }
   flashOverlay.classList.add('hit');
-  setTimeout(function() { flashOverlay.classList.remove('hit'); }, 300);
+  var blinkCount = 0;
+  var blinkInterval = setInterval(function() {
+    flashOverlay.classList.toggle('hit');
+    blinkCount++;
+    if (blinkCount > 8) {
+      clearInterval(blinkInterval);
+      flashOverlay.classList.remove('hit');
+    }
+  }, 200);
+}
+
+// ===== SOUND (Web Audio API) =====
+function initAudio() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function startEngineSound() {
+  if (!audioCtx) return;
+  engineOsc = audioCtx.createOscillator();
+  engineGain = audioCtx.createGain();
+  engineOsc.type = 'sawtooth';
+  engineOsc.frequency.setValueAtTime(80, audioCtx.currentTime);
+  engineGain.gain.setValueAtTime(0.06, audioCtx.currentTime);
+  engineOsc.connect(engineGain);
+  engineGain.connect(audioCtx.destination);
+  engineOsc.start();
+}
+
+function updateEngineSound(speedFactor) {
+  if (!engineOsc || !engineGain) return;
+  var freq = 60 + speedFactor * 50;
+  engineOsc.frequency.setTargetAtTime(Math.min(freq, 250), audioCtx.currentTime, 0.1);
+  var vol = 0.03 + speedFactor * 0.03;
+  engineGain.gain.setTargetAtTime(Math.min(vol, 0.12), audioCtx.currentTime, 0.1);
+}
+
+function stopEngineSound() {
+  if (engineOsc) { try { engineOsc.stop(); } catch(e) {} engineOsc = null; }
+  if (engineGain) { engineGain.disconnect(); engineGain = null; }
+}
+
+function playCrashSound() {
+  if (!audioCtx) return;
+  var bufferSize = audioCtx.sampleRate * 0.3;
+  var buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+  var data = buffer.getChannelData(0);
+  for (var i = 0; i < bufferSize; i++) {
+    data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 2);
+  }
+  var noise = audioCtx.createBufferSource();
+  noise.buffer = buffer;
+  var gain = audioCtx.createGain();
+  gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+  noise.connect(gain);
+  gain.connect(audioCtx.destination);
+  noise.start();
 }
 
 // ===== RESET =====
@@ -995,6 +1121,8 @@ function resetGame() {
   if (assetsReady) {
     player = createPlayerCar();
     gameActive = true;
+    initAudio();
+    startEngineSound();
     for (var i = 0; i < 5; i++) {
       (function(idx) {
         setTimeout(function() { if (gameActive) spawnBuildingRow(); }, idx * 200);
@@ -1123,7 +1251,9 @@ function updateGame(dt) {
 
   updateDifficulty(dt);
 
-  if (checkCollisions()) { gameOver(); return; }
+  if (checkCollisions()) { playCrashSound(); stopEngineSound(); gameOver(); return; }
+
+  updateEngineSound(speedFactor);
 
   // Disco animation
   var t = totalTime;
