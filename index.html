@@ -307,7 +307,7 @@ const SCORE_PER_SECOND = 10;
 const PASS_BONUS = 50;
 const SPEED_MULT_MIN = 0.2;
 const SPEED_MULT_MAX = 3.0;
-const ACCEL_RATE = 2.2;
+const ACCEL_RATE = 1.2;
 const BRAKE_RATE = 2.4;
 const CAR_SCALE = 0.8;
 
@@ -364,6 +364,7 @@ let handbrakeSource = null, handbrakeGain = null;
 let smokeParticles = [];
 let smokeTexture = null;
 let handbrakeBackfireTimer = 0;
+let motionSpeedFactor = 0;
 
 // ===== UI REFS =====
 const scoreEl = document.getElementById('score-val');
@@ -1392,33 +1393,36 @@ function updateGame(dt) {
   dt = Math.min(dt, 0.05);
   totalTime += dt;
 
-  if (keys.w && !keys.handbrake) speedMultiplier += ACCEL_RATE * dt;
+  if (keys.w) speedMultiplier += ACCEL_RATE * dt;
   if (keys.s) speedMultiplier -= BRAKE_RATE * dt;
-  if (keys.handbrake && !keys.w) speedMultiplier -= 6.0 * dt;
   speedMultiplier = Math.max(SPEED_MULT_MIN, Math.min(SPEED_MULT_MAX, speedMultiplier));
-  if (keys.w && keys.handbrake) speedMultiplier = SPEED_MULT_MAX;
   if (!keys.w && !keys.s && !keys.handbrake) {
-    speedMultiplier += (1.0 - speedMultiplier) * Math.min(1, 0.8 * dt);
+    speedMultiplier += (1.0 - speedMultiplier) * Math.min(1, 0.5 * dt);
   }
 
   var currentSpeed = Math.min(enemySpeed * speedMultiplier, maxSpeedCap / 6.0);
   speedFactor = currentSpeed / ENEMY_BASE_SPEED;
+  motionSpeedFactor = speedFactor;
 
-  if (handbrakeSource && keys.handbrake && speedFactor > 0.5) {
-    try { handbrakeSource.osc.frequency.setValueAtTime(1200 - speedFactor * 100, audioCtx.currentTime); } catch(e) {}
+  // Handbrake overrides: car doesn't move
+  if (keys.handbrake) { currentSpeed = 0; speedFactor = 0; }
+  if (keys.w && keys.handbrake) { speedMultiplier = SPEED_MULT_MAX; }
+
+  if (handbrakeSource && keys.handbrake && motionSpeedFactor > 0.5) {
+    try { handbrakeSource.osc.frequency.setValueAtTime(1200 - motionSpeedFactor * 100, audioCtx.currentTime); } catch(e) {}
   }
 
-  if (keys.handbrake && speedFactor > 0.5 && !handbrakeSoundActive) {
+  if (keys.handbrake && motionSpeedFactor > 0.5 && !handbrakeSoundActive) {
     startScreechLoop();
     handbrakeSoundActive = true;
   }
-  if ((!keys.handbrake || speedFactor <= 0.5) && handbrakeSoundActive) {
+  if ((!keys.handbrake || motionSpeedFactor <= 0.5) && handbrakeSoundActive) {
     stopScreechLoop();
     handbrakeSoundActive = false;
   }
 
   // Handbrake smoke
-  if (player && keys.handbrake && speedFactor > 0.3) {
+  if (player && keys.handbrake && motionSpeedFactor > 0.3) {
     for (var si = 0; si < 3; si++) {
       var smMat = new THREE.SpriteMaterial({ map: smokeTexture, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false });
       var sprite = new THREE.Sprite(smMat);
