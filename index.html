@@ -755,7 +755,10 @@ document.addEventListener('keyup', function(e) {
       wasGasPressed = false;
       var burstCount = 1 + Math.floor(Math.random() * 3);
       for (var bi = 0; bi < burstCount; bi++) {
-        (function(d) { setTimeout(function() { playCrackleSound(); }, d); })(bi * 100 + Math.random() * 80);
+        (function(d) { setTimeout(function() {
+          playCrackleSound();
+          if (player) showFlame(player.position.x + (Math.random() - 0.5) * 0.2, 0.05, player.position.z - 0.8);
+        }, d); })(bi * 120 + Math.random() * 60);
       }
     }
   }
@@ -1158,40 +1161,81 @@ function playCrashSound() {
 function playCrackleSound() {
   if (!audioCtx) return;
   var now = audioCtx.currentTime;
-  var len = 0.06 + Math.random() * 0.08;
+  var len = 0.08 + Math.random() * 0.12;
 
-  // Sub-bass thump (the "velvet" part)
+  // Sub-bass thump
   var osc = audioCtx.createOscillator();
   osc.type = 'sine';
-  osc.frequency.setValueAtTime(80 + Math.random() * 60, now);
-  osc.frequency.exponentialRampToValueAtTime(30, now + len);
+  osc.frequency.setValueAtTime(60 + Math.random() * 40, now);
+  osc.frequency.exponentialRampToValueAtTime(25, now + len);
   var oscGain = audioCtx.createGain();
-  oscGain.gain.setValueAtTime(0.25, now);
+  oscGain.gain.setValueAtTime(0.5, now);
   oscGain.gain.exponentialRampToValueAtTime(0.001, now + len);
   osc.connect(oscGain);
   oscGain.connect(audioCtx.destination);
   osc.start(now);
   osc.stop(now + len);
 
-  // Soft filtered pop
+  // Sharp crack
   var bufSize = Math.floor(audioCtx.sampleRate * len);
   var buffer = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
   var data = buffer.getChannelData(0);
   for (var i = 0; i < bufSize; i++) {
-    data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufSize, 2);
+    data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufSize, 1.5);
   }
   var noise = audioCtx.createBufferSource();
   noise.buffer = buffer;
   var noiseGain = audioCtx.createGain();
-  noiseGain.gain.setValueAtTime(0.18, now);
+  noiseGain.gain.setValueAtTime(0.4, now);
   noiseGain.gain.exponentialRampToValueAtTime(0.001, now + len);
   var filter = audioCtx.createBiquadFilter();
   filter.type = 'lowpass';
-  filter.frequency.setValueAtTime(600 + Math.random() * 400, now);
+  filter.frequency.setValueAtTime(1500, now);
+  filter.frequency.exponentialRampToValueAtTime(200, now + len);
   noise.connect(filter);
   filter.connect(noiseGain);
   noiseGain.connect(audioCtx.destination);
   noise.start(now);
+}
+
+function showFlame(x, y, z) {
+  var count = 15;
+  var geo = new THREE.BufferGeometry();
+  var pos = new Float32Array(count * 3);
+  var cols = new Float32Array(count * 3);
+  for (var i = 0; i < count; i++) {
+    pos[i * 3] = x + (Math.random() - 0.5) * 0.15;
+    pos[i * 3 + 1] = y + Math.random() * 0.1;
+    pos[i * 3 + 2] = z + (Math.random() - 0.5) * 0.15;
+    var c = new THREE.Color().setHSL(0.08 + Math.random() * 0.07, 1, 0.4 + Math.random() * 0.4);
+    cols[i * 3] = c.r; cols[i * 3 + 1] = c.g; cols[i * 3 + 2] = c.b;
+  }
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+  var mat = new THREE.PointsMaterial({
+    size: 0.25, vertexColors: true, transparent: true, opacity: 1,
+    blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true
+  });
+  var flame = new THREE.Points(geo, mat);
+  scene.add(flame);
+  var life = 0.4;
+  var timer = setInterval(function() {
+    life -= 0.02;
+    if (life <= 0) {
+      clearInterval(timer);
+      scene.remove(flame);
+      return;
+    }
+    var p = flame.geometry.attributes.position.array;
+    for (var i = 0; i < count; i++) {
+      p[i * 3] += (Math.random() - 0.5) * 0.06;
+      p[i * 3 + 1] += Math.random() * 0.08 + 0.02;
+      p[i * 3 + 2] += (Math.random() - 0.5) * 0.06;
+    }
+    flame.geometry.attributes.position.needsUpdate = true;
+    flame.material.opacity = life * 2;
+    flame.scale.setScalar(1 + (1 - life * 2.5) * 0.8);
+  }, 16);
 }
 
 // ===== RESET =====
