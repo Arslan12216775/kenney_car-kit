@@ -1272,31 +1272,46 @@ function startScreech() {
   if (!audioCtx || screechSource) return;
   var now = audioCtx.currentTime;
   var osc = audioCtx.createOscillator();
-  osc.type = 'square';
-  osc.frequency.setValueAtTime(3800, now);
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(1200, now);
   var oscGain = audioCtx.createGain();
-  oscGain.gain.setValueAtTime(0.015, now);
-  var bufSize = Math.floor(audioCtx.sampleRate * 0.08);
+  oscGain.gain.setValueAtTime(0.04, now);
+  var oscFilter = audioCtx.createBiquadFilter();
+  oscFilter.type = 'lowpass';
+  oscFilter.frequency.setValueAtTime(2500, now);
+  oscFilter.Q.setValueAtTime(1.0, now);
+  osc.connect(oscFilter); oscFilter.connect(oscGain);
+  // Modulator for wobble
+  var mod = audioCtx.createOscillator();
+  mod.type = 'sine';
+  mod.frequency.setValueAtTime(25, now);
+  var modGain = audioCtx.createGain();
+  modGain.gain.setValueAtTime(300, now);
+  mod.connect(modGain); modGain.connect(osc.frequency);
+  mod.start(now);
+  // Friction noise
+  var bufSize = Math.floor(audioCtx.sampleRate * 0.12);
   var buf = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
   var d = buf.getChannelData(0);
-  for (var i = 0; i < bufSize; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / bufSize);
+  for (var i = 0; i < bufSize; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufSize, 0.6);
   var noise = audioCtx.createBufferSource();
   noise.buffer = buf; noise.loop = true;
   var nf = audioCtx.createBiquadFilter();
-  nf.type = 'bandpass'; nf.frequency.setValueAtTime(5500, now); nf.Q.setValueAtTime(0.8, now);
+  nf.type = 'bandpass'; nf.frequency.setValueAtTime(2200, now); nf.Q.setValueAtTime(0.4, now);
   var noiseGain = audioCtx.createGain();
-  noiseGain.gain.setValueAtTime(0.025, now);
+  noiseGain.gain.setValueAtTime(0.035, now);
   noise.connect(nf); nf.connect(noiseGain);
   var mg = audioCtx.createGain(); mg.gain.setValueAtTime(1, now);
   oscGain.connect(mg); noiseGain.connect(mg); mg.connect(audioCtx.destination);
   osc.start(now); noise.start(now);
-  screechSource = { osc: osc, noise: noise, mg: mg, oscGain: oscGain };
+  screechSource = { osc: osc, noise: noise, mg: mg, oscGain: oscGain, mod: mod, nf: nf };
 }
 
 function stopScreech() {
   if (screechSource) {
     try { screechSource.osc.stop(); } catch(e) {}
     try { screechSource.noise.stop(); } catch(e) {}
+    try { screechSource.mod.stop(); } catch(e) {}
     screechSource = null;
   }
 }
@@ -1399,7 +1414,8 @@ function updateGame(dt) {
     if (!screechSource) startScreech();
     // update screech pitch with speed
     if (screechSource && screechSource.osc) {
-      try { screechSource.osc.frequency.setValueAtTime(3500 + actualSpeed * 20, audioCtx.currentTime); } catch(e) {}
+      try { screechSource.osc.frequency.setValueAtTime(1000 + actualSpeed * 15, audioCtx.currentTime); } catch(e) {}
+      try { screechSource.nf.frequency.setValueAtTime(1800 + actualSpeed * 20, audioCtx.currentTime); } catch(e) {}
     }
     for (var si = 0; si < 3; si++) {
       var smMat = new THREE.SpriteMaterial({ map: smokeTexture, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false });
