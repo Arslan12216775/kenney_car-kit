@@ -1213,20 +1213,33 @@ function stopEngineSound() {
 
 function playCrashSound() {
   if (!audioCtx) return;
-  var bufferSize = audioCtx.sampleRate * 0.3;
-  var buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-  var data = buffer.getChannelData(0);
-  for (var i = 0; i < bufferSize; i++) {
-    data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 2);
+  var now = audioCtx.currentTime;
+  // Low thud
+  var bufSize = Math.floor(audioCtx.sampleRate * 0.25);
+  var buf = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
+  var d = buf.getChannelData(0);
+  for (var i = 0; i < bufSize; i++) {
+    d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufSize, 1.5);
   }
   var noise = audioCtx.createBufferSource();
-  noise.buffer = buffer;
-  var gain = audioCtx.createGain();
-  gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
-  noise.connect(gain);
-  gain.connect(audioCtx.destination);
-  noise.start();
+  noise.buffer = buf;
+  var nf = audioCtx.createBiquadFilter();
+  nf.type = 'lowpass'; nf.frequency.setValueAtTime(400, now);
+  var ng = audioCtx.createGain();
+  ng.gain.setValueAtTime(0.08, now);
+  ng.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+  noise.connect(nf); nf.connect(ng); ng.connect(audioCtx.destination);
+  noise.start(now);
+  // Metal ring
+  var osc = audioCtx.createOscillator();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(800, now);
+  osc.frequency.exponentialRampToValueAtTime(200, now + 0.15);
+  var og = audioCtx.createGain();
+  og.gain.setValueAtTime(0.04, now);
+  og.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+  osc.connect(og); og.connect(audioCtx.destination);
+  osc.start(now); osc.stop(now + 0.15);
 }
 
 function playCrackleSound() {
