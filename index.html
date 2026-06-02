@@ -363,6 +363,7 @@ let smokeParticles = [];
 let smokeTexture = null;
 let handbrakeBackfireTimer = 0;
 let actualSpeed = 0;
+let screechSource = null;
 
 // ===== UI REFS =====
 const scoreEl = document.getElementById('score-val');
@@ -1147,6 +1148,7 @@ function clearSmoke() {
 
 function gameOver() {
   gameActive = false;
+  stopScreech();
   clearSmoke();
   shakeIntensity = 1.5;
   if (player) {
@@ -1266,6 +1268,39 @@ function playCrackleSound() {
   noise.start(now);
 }
 
+function startScreech() {
+  if (!audioCtx || screechSource) return;
+  var now = audioCtx.currentTime;
+  var osc = audioCtx.createOscillator();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(1000, now);
+  var oscGain = audioCtx.createGain();
+  oscGain.gain.setValueAtTime(0.02, now);
+  var bufSize = Math.floor(audioCtx.sampleRate * 0.1);
+  var buf = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
+  var d = buf.getChannelData(0);
+  for (var i = 0; i < bufSize; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / bufSize);
+  var noise = audioCtx.createBufferSource();
+  noise.buffer = buf; noise.loop = true;
+  var nf = audioCtx.createBiquadFilter();
+  nf.type = 'bandpass'; nf.frequency.setValueAtTime(3000, now); nf.Q.setValueAtTime(0.5, now);
+  var noiseGain = audioCtx.createGain();
+  noiseGain.gain.setValueAtTime(0.04, now);
+  noise.connect(nf); nf.connect(noiseGain);
+  var mg = audioCtx.createGain(); mg.gain.setValueAtTime(1, now);
+  oscGain.connect(mg); noiseGain.connect(mg); mg.connect(audioCtx.destination);
+  osc.start(now); noise.start(now);
+  screechSource = { osc: osc, noise: noise, mg: mg, oscGain: oscGain };
+}
+
+function stopScreech() {
+  if (screechSource) {
+    try { screechSource.osc.stop(); } catch(e) {}
+    try { screechSource.noise.stop(); } catch(e) {}
+    screechSource = null;
+  }
+}
+
 function showFlame() {
   var el = document.getElementById('flame-glow');
   el.classList.add('fire');
@@ -1359,8 +1394,13 @@ function updateGame(dt) {
   }
   var currentSpeed = actualSpeed;
 
-  // Handbrake smoke — only when actually moving
+  // Handbrake screech + smoke — only when actually moving
   if (player && keys.handbrake && actualSpeed > ENEMY_BASE_SPEED * 0.3) {
+    if (!screechSource) startScreech();
+    // update screech pitch with speed
+    if (screechSource && screechSource.osc) {
+      try { screechSource.osc.frequency.setValueAtTime(800 + actualSpeed * 8, audioCtx.currentTime); } catch(e) {}
+    }
     for (var si = 0; si < 3; si++) {
       var smMat = new THREE.SpriteMaterial({ map: smokeTexture, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false });
       var sprite = new THREE.Sprite(smMat);
@@ -1380,6 +1420,8 @@ function updateGame(dt) {
       scene.add(sprite);
       smokeParticles.push(sprite);
     }
+  } else if (screechSource) {
+    stopScreech();
   }
   for (var si = smokeParticles.length - 1; si >= 0; si--) {
     var sp = smokeParticles[si];
