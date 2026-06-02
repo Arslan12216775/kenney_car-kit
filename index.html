@@ -817,7 +817,7 @@ document.addEventListener('touchend', function() { touchX = null; });
 const limiterVal = document.getElementById('limiter-val');
 const limiterInc = document.getElementById('limiter-inc');
 const limiterDec = document.getElementById('limiter-dec');
-limiterInc.addEventListener('click', function(e){ e.stopPropagation(); maxSpeedCap = Math.min(500, maxSpeedCap + 10); limiterVal.textContent = maxSpeedCap; });
+limiterInc.addEventListener('click', function(e){ e.stopPropagation(); maxSpeedCap = Math.min(250, maxSpeedCap + 10); limiterVal.textContent = maxSpeedCap; });
 limiterDec.addEventListener('click', function(e){ e.stopPropagation(); maxSpeedCap = Math.max(80, maxSpeedCap - 10); limiterVal.textContent = maxSpeedCap; });
 
 // ===== CAR MENU =====
@@ -1315,7 +1315,7 @@ function updateGame(dt) {
     speedMultiplier += (1.0 - speedMultiplier) * Math.min(1, 0.8 * dt);
   }
 
-  var currentSpeed = enemySpeed * speedMultiplier;
+  var currentSpeed = Math.min(enemySpeed * speedMultiplier, maxSpeedCap / 6.0);
   speedFactor = currentSpeed / ENEMY_BASE_SPEED;
 
   if (roadTexture) {
@@ -1408,7 +1408,7 @@ function updateGame(dt) {
   var speedPct = Math.min(100, (speedMultiplier / SPEED_MULT_MAX) * 100);
   speedFill.style.width = speedPct + '%';
   var rpmRaw = Math.min(speedMultiplier / SPEED_MULT_MAX, 1.0);
-  rpmVal.textContent = Math.round(rpmRaw * 8);
+  rpmVal.textContent = Math.round(1000 + rpmRaw * 7000);
   rpmFill.style.width = (rpmRaw * 100) + '%';
 
   updateDifficulty(dt);
