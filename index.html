@@ -1392,10 +1392,11 @@ function updateGame(dt) {
   dt = Math.min(dt, 0.05);
   totalTime += dt;
 
-  if (keys.w) speedMultiplier += ACCEL_RATE * dt;
+  if (keys.w && !keys.handbrake) speedMultiplier += ACCEL_RATE * dt;
   if (keys.s) speedMultiplier -= BRAKE_RATE * dt;
-  if (keys.handbrake) speedMultiplier -= 6.0 * dt;
+  if (keys.handbrake && !keys.w) speedMultiplier -= 6.0 * dt;
   speedMultiplier = Math.max(SPEED_MULT_MIN, Math.min(SPEED_MULT_MAX, speedMultiplier));
+  if (keys.w && keys.handbrake) speedMultiplier = SPEED_MULT_MAX;
   if (!keys.w && !keys.s && !keys.handbrake) {
     speedMultiplier += (1.0 - speedMultiplier) * Math.min(1, 0.8 * dt);
   }
@@ -1417,7 +1418,7 @@ function updateGame(dt) {
   }
 
   // Handbrake smoke
-  if (player && keys.handbrake && (keys.w || speedFactor > 0.3)) {
+  if (player && keys.handbrake && speedFactor > 0.3) {
     for (var si = 0; si < 3; si++) {
       var smMat = new THREE.SpriteMaterial({ map: smokeTexture, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false });
       var sprite = new THREE.Sprite(smMat);
