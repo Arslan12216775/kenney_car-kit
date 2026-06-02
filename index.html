@@ -362,7 +362,6 @@ let maxSpeedCap = 250;
 let smokeParticles = [];
 let smokeTexture = null;
 let handbrakeBackfireTimer = 0;
-let motionSpeedFactor = 0;
 let actualSpeed = 0;
 
 // ===== UI REFS =====
@@ -1347,7 +1346,6 @@ function updateGame(dt) {
 
   var desiredSpeed = Math.min(enemySpeed * speedMultiplier, maxSpeedCap / 6.0);
   speedFactor = desiredSpeed / ENEMY_BASE_SPEED;
-  motionSpeedFactor = speedFactor;
 
   // Handbrake smoothly stops the car (persistent actualSpeed)
   if (keys.handbrake && !keys.w) {
@@ -1356,12 +1354,12 @@ function updateGame(dt) {
     speedMultiplier = SPEED_MULT_MAX;
     actualSpeed = Math.max(0, actualSpeed - 24 * dt);
   } else {
-    actualSpeed = desiredSpeed;
+    actualSpeed += (desiredSpeed - actualSpeed) * Math.min(1, 2.0 * dt);
   }
   var currentSpeed = actualSpeed;
 
-  // Handbrake smoke
-  if (player && keys.handbrake && motionSpeedFactor > 0.3) {
+  // Handbrake smoke — only when actually moving
+  if (player && keys.handbrake && actualSpeed > ENEMY_BASE_SPEED * 0.3) {
     for (var si = 0; si < 3; si++) {
       var smMat = new THREE.SpriteMaterial({ map: smokeTexture, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false });
       var sprite = new THREE.Sprite(smMat);
