@@ -1052,7 +1052,7 @@ function startEngineSound() {
   engineGain = audioCtx.createGain();
   engineOsc.type = 'triangle';
   engineOsc.frequency.setValueAtTime(70, audioCtx.currentTime);
-  engineGain.gain.setValueAtTime(0.04, audioCtx.currentTime);
+  engineGain.gain.setValueAtTime(0.055, audioCtx.currentTime);
   engineOsc.connect(engineGain);
   engineGain.connect(audioCtx.destination);
   engineOsc.start();
@@ -1062,8 +1062,8 @@ function updateEngineSound(speedFactor) {
   if (!engineOsc || !engineGain) return;
   var freq = 50 + speedFactor * 40;
   engineOsc.frequency.setTargetAtTime(Math.min(freq, 200), audioCtx.currentTime, 0.15);
-  var vol = 0.015 + speedFactor * 0.03;
-  engineGain.gain.setTargetAtTime(Math.min(vol, 0.10), audioCtx.currentTime, 0.1);
+  var vol = 0.02 + speedFactor * 0.035;
+  engineGain.gain.setTargetAtTime(Math.min(vol, 0.12), audioCtx.currentTime, 0.1);
 }
 
 function stopEngineSound() {
@@ -1091,25 +1091,41 @@ function playCrashSound() {
 
 function playCrackleSound() {
   if (!audioCtx) return;
-  var len = 0.03 + Math.random() * 0.05;
+  var now = audioCtx.currentTime;
+  var len = 0.06 + Math.random() * 0.08;
+
+  // Sub-bass thump (the "velvet" part)
+  var osc = audioCtx.createOscillator();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(80 + Math.random() * 60, now);
+  osc.frequency.exponentialRampToValueAtTime(30, now + len);
+  var oscGain = audioCtx.createGain();
+  oscGain.gain.setValueAtTime(0.12, now);
+  oscGain.gain.exponentialRampToValueAtTime(0.001, now + len);
+  osc.connect(oscGain);
+  oscGain.connect(audioCtx.destination);
+  osc.start(now);
+  osc.stop(now + len);
+
+  // Soft filtered pop
   var bufSize = Math.floor(audioCtx.sampleRate * len);
   var buffer = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
   var data = buffer.getChannelData(0);
   for (var i = 0; i < bufSize; i++) {
-    data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufSize, 3);
+    data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufSize, 2);
   }
   var noise = audioCtx.createBufferSource();
   noise.buffer = buffer;
-  var gain = audioCtx.createGain();
-  gain.gain.setValueAtTime(0.15 + Math.random() * 0.1, audioCtx.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + len);
+  var noiseGain = audioCtx.createGain();
+  noiseGain.gain.setValueAtTime(0.08, now);
+  noiseGain.gain.exponentialRampToValueAtTime(0.001, now + len);
   var filter = audioCtx.createBiquadFilter();
-  filter.type = 'highpass';
-  filter.frequency.setValueAtTime(2000 + Math.random() * 2000, audioCtx.currentTime);
+  filter.type = 'lowpass';
+  filter.frequency.setValueAtTime(600 + Math.random() * 400, now);
   noise.connect(filter);
-  filter.connect(gain);
-  gain.connect(audioCtx.destination);
-  noise.start();
+  filter.connect(noiseGain);
+  noiseGain.connect(audioCtx.destination);
+  noise.start(now);
 }
 
 // ===== RESET =====
