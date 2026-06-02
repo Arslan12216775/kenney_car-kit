@@ -177,7 +177,7 @@ canvas { display: block; }
 <div id="ui">
   <div id="score">SCORE <span id="score-val">0</span></div>
   <div id="highscore">BEST <span id="highscore-val">0</span></div>
-  <div id="speed-indicator">SPEED <div class="speed-bar"><div class="speed-fill" id="speed-fill" style="width:20%"></div></div></div>
+  <div id="speed-indicator"><span id="speed-val">0</span> km/h <div class="speed-bar"><div class="speed-fill" id="speed-fill" style="width:20%"></div></div></div>
   <div id="controls-hint">← → or A/D · W accelerate · S brake · R restart</div>
   <div id="game-over">
     <h1>GAME OVER</h1>
@@ -282,6 +282,7 @@ const gameOverEl = document.getElementById('game-over');
 const restartBtn = document.getElementById('restart-btn');
 const flashOverlay = document.getElementById('flash-overlay');
 const speedFill = document.getElementById('speed-fill');
+const speedVal = document.getElementById('speed-val');
 const loadFill = document.getElementById('load-fill');
 const loadingEl = document.getElementById('loading');
 const menuBtn = document.getElementById('menu-btn');
@@ -890,7 +891,6 @@ function startGame() {
   gameActive = true;
   initAudio();
   startEngineSound();
-  startMusic();
 
   for (var i = 0; i < 5; i++) {
     (function(idx) {
@@ -1011,7 +1011,6 @@ function createExplosion(x, y, z) {
 function gameOver() {
   gameActive = false;
   shakeIntensity = 1.5;
-  stopMusic();
   if (player) {
     createExplosion(player.position.x, 0.3, player.position.z);
     scene.remove(player);
@@ -1053,7 +1052,7 @@ function startEngineSound() {
   engineGain = audioCtx.createGain();
   engineOsc.type = 'triangle';
   engineOsc.frequency.setValueAtTime(70, audioCtx.currentTime);
-  engineGain.gain.setValueAtTime(0.02, audioCtx.currentTime);
+  engineGain.gain.setValueAtTime(0.04, audioCtx.currentTime);
   engineOsc.connect(engineGain);
   engineGain.connect(audioCtx.destination);
   engineOsc.start();
@@ -1061,10 +1060,10 @@ function startEngineSound() {
 
 function updateEngineSound(speedFactor) {
   if (!engineOsc || !engineGain) return;
-  var freq = 50 + speedFactor * 35;
-  engineOsc.frequency.setTargetAtTime(Math.min(freq, 180), audioCtx.currentTime, 0.15);
-  var vol = 0.01 + speedFactor * 0.015;
-  engineGain.gain.setTargetAtTime(Math.min(vol, 0.06), audioCtx.currentTime, 0.1);
+  var freq = 50 + speedFactor * 40;
+  engineOsc.frequency.setTargetAtTime(Math.min(freq, 200), audioCtx.currentTime, 0.15);
+  var vol = 0.015 + speedFactor * 0.03;
+  engineGain.gain.setTargetAtTime(Math.min(vol, 0.10), audioCtx.currentTime, 0.1);
 }
 
 function stopEngineSound() {
@@ -1090,66 +1089,27 @@ function playCrashSound() {
   noise.start();
 }
 
-// ===== BACKGROUND MUSIC =====
-var musicNodes = null;
-
-function startMusic() {
-  if (!audioCtx || musicNodes) return;
-  var now = audioCtx.currentTime;
-  var masterGain = audioCtx.createGain();
-  masterGain.gain.setValueAtTime(0.08, now);
-  masterGain.connect(audioCtx.destination);
-
-  var filter = audioCtx.createBiquadFilter();
-  filter.type = 'lowpass';
-  filter.frequency.setValueAtTime(400, now);
-  filter.Q.setValueAtTime(2, now);
-  filter.connect(masterGain);
-
-  var osc1 = audioCtx.createOscillator();
-  osc1.type = 'sine';
-  osc1.connect(filter);
-  osc1.start();
-
-  var osc2 = audioCtx.createOscillator();
-  osc2.type = 'triangle';
-  osc2.connect(filter);
-  osc2.start();
-
-  musicNodes = { osc1: osc1, osc2: osc2, filter: filter, masterGain: masterGain, now: now };
-  scheduleMusicNotes();
-}
-
-function scheduleMusicNotes() {
-  if (!musicNodes || !audioCtx) return;
-  var notes = [130.81, 146.83, 164.81, 174.61, 196.00, 220.00, 261.63, 293.66];
-  var bass = [65.41, 73.42, 82.41, 87.31, 98.00, 110.00, 130.81, 146.83];
-  var now = audioCtx.currentTime;
-  musicNodes.now = now;
-  for (var i = 0; i < 16; i++) {
-    var idx = i % notes.length;
-    var t = now + i * 0.3;
-    musicNodes.osc1.frequency.setValueAtTime(notes[idx] * 2, t);
-    musicNodes.osc2.frequency.setValueAtTime(bass[idx % bass.length], t);
-    if (i === 0 || i === 8) {
-      musicNodes.masterGain.gain.setValueAtTime(0.08, t);
-      musicNodes.masterGain.gain.linearRampToValueAtTime(0.05, t + 0.25);
-    } else if (i === 4 || i === 12) {
-      musicNodes.masterGain.gain.setValueAtTime(0.05, t);
-      musicNodes.masterGain.gain.linearRampToValueAtTime(0.07, t + 0.25);
-    }
+function playCrackleSound() {
+  if (!audioCtx) return;
+  var len = 0.03 + Math.random() * 0.05;
+  var bufSize = Math.floor(audioCtx.sampleRate * len);
+  var buffer = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
+  var data = buffer.getChannelData(0);
+  for (var i = 0; i < bufSize; i++) {
+    data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufSize, 3);
   }
-  musicNodes.scheduleTimeout = setTimeout(scheduleMusicNotes, 16 * 0.3 * 1000 - 200);
-}
-
-function stopMusic() {
-  if (!musicNodes) return;
-  if (musicNodes.scheduleTimeout) clearTimeout(musicNodes.scheduleTimeout);
-  if (musicNodes.osc1) { try { musicNodes.osc1.stop(); } catch(e) {} }
-  if (musicNodes.osc2) { try { musicNodes.osc2.stop(); } catch(e) {} }
-  if (musicNodes.masterGain) musicNodes.masterGain.disconnect();
-  if (musicNodes.filter) musicNodes.filter.disconnect();
-  musicNodes = null;
+  var noise = audioCtx.createBufferSource();
+  noise.buffer = buffer;
+  var gain = audioCtx.createGain();
+  gain.gain.setValueAtTime(0.15 + Math.random() * 0.1, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + len);
+  var filter = audioCtx.createBiquadFilter();
+  filter.type = 'highpass';
+  filter.frequency.setValueAtTime(2000 + Math.random() * 2000, audioCtx.currentTime);
+  noise.connect(filter);
+  filter.connect(gain);
+  gain.connect(audioCtx.destination);
+  noise.start();
 }
 
 // ===== RESET =====
@@ -1187,7 +1147,6 @@ function resetGame() {
     gameActive = true;
     initAudio();
     startEngineSound();
-    startMusic();
     for (var i = 0; i < 5; i++) {
       (function(idx) {
         setTimeout(function() { if (gameActive) spawnBuildingRow(); }, idx * 200);
@@ -1311,6 +1270,8 @@ function updateGame(dt) {
 
   score += SCORE_PER_SECOND * dt;
   scoreEl.textContent = Math.floor(score);
+  var speedKmh = Math.round(currentSpeed * 4.0);
+  speedVal.textContent = Math.min(250, speedKmh);
   var speedPct = Math.min(100, (speedMultiplier / SPEED_MULT_MAX) * 100);
   speedFill.style.width = speedPct + '%';
 
@@ -1319,6 +1280,10 @@ function updateGame(dt) {
   if (checkCollisions()) { playCrashSound(); stopEngineSound(); gameOver(); return; }
 
   updateEngineSound(speedFactor);
+
+  if (speedFactor > 2.0 && Math.random() < 0.02 * speedFactor) {
+    playCrackleSound();
+  }
 
   // Disco animation
   var t = totalTime;
