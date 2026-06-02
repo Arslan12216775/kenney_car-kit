@@ -1511,6 +1511,7 @@ function updateGame(dt) {
   emitParticles(player.position.x + 0.3, player.position.z + 0.6);
 
   timeSinceLastSpawn += dt;
+  if (actualSpeed < 0.5) { timeSinceLastSpawn = 0; }
   var effInterval = spawnInterval / (1 + (speedFactor - 1) * 0.3);
   if (timeSinceLastSpawn >= effInterval) {
     timeSinceLastSpawn = 0;
@@ -1524,6 +1525,7 @@ function updateGame(dt) {
   }
 
   roadsideSpawnTimer += dt;
+  if (actualSpeed < 0.5) { roadsideSpawnTimer = 0; }
   var roadsideInterval = Math.max(0.4, 2.0 / Math.max(0.5, speedFactor));
   var maxObjects = 60 + Math.floor(30 * speedFactor);
   if (roadsideSpawnTimer >= roadsideInterval && roadsideObjects.length < maxObjects) {
