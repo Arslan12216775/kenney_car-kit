@@ -1277,7 +1277,7 @@ function startScreechLoop() {
   osc.frequency.setValueAtTime(1200 - speedFactor * 100, now);
   osc.frequency.linearRampToValueAtTime(900 - speedFactor * 100, now + 0.15);
   var oscGain = audioCtx.createGain();
-  oscGain.gain.setValueAtTime(0.05, now);
+  oscGain.gain.setValueAtTime(0.015, now);
   var oscFilter = audioCtx.createBiquadFilter();
   oscFilter.type = 'lowpass';
   oscFilter.frequency.setValueAtTime(2000, now);
@@ -1298,7 +1298,7 @@ function startScreechLoop() {
   noiseFilter.frequency.setValueAtTime(3500, now);
   noiseFilter.Q.setValueAtTime(0.6, now);
   var noiseGain = audioCtx.createGain();
-  noiseGain.gain.setValueAtTime(0.10, now);
+  noiseGain.gain.setValueAtTime(0.03, now);
   noise.connect(noiseFilter);
   noiseFilter.connect(noiseGain);
   // Mix
@@ -1417,7 +1417,7 @@ function updateGame(dt) {
   }
 
   // Handbrake smoke
-  if (keys.handbrake && speedFactor > 0.3) {
+  if (player && keys.handbrake && (keys.w || speedFactor > 0.3)) {
     for (var si = 0; si < 3; si++) {
       var smMat = new THREE.SpriteMaterial({ map: smokeTexture, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false });
       var sprite = new THREE.Sprite(smMat);
@@ -1455,7 +1455,7 @@ function updateGame(dt) {
   }
 
   // Backfire on handbrake + gas
-  if (keys.handbrake && keys.w && speedFactor > 1.8 && gameActive) {
+  if (player && keys.handbrake && keys.w && gameActive) {
     handbrakeBackfireTimer -= dt;
     if (handbrakeBackfireTimer <= 0) {
       playCrackleSound();
