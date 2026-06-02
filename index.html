@@ -261,7 +261,7 @@ canvas { display: block; }
       <button id="limiter-inc" class="limiter-btn">+</button>
     </div>
   </div>
-  <div id="controls-hint">← → or A/D · W accelerate · S brake · R restart</div>
+  <div id="controls-hint">← → or A/D · W accelerate · S brake · SPACE handbrake · R restart</div>
   <div id="game-over">
     <h1>GAME OVER</h1>
     <div class="final-score">Score: <span id="final-score">0</span></div>
@@ -344,7 +344,7 @@ let playerTargetX = 0;
 let playerCurrentX = 0;
 let totalTime = 0;
 let passedEnemies = 0;
-let keys = { left: false, right: false, w: false, s: false };
+let keys = { left: false, right: false, w: false, s: false, handbrake: false };
 let speedMultiplier = 1.0;
 let speedFactor = 1.0;
 let wasGasPressed = false;
@@ -359,6 +359,8 @@ let assetsReady = false;
 let shakeIntensity = 0;
 let audioCtx = null, engineOsc = null, engineGain = null;
 let maxSpeedCap = 250;
+let handbrakeSoundActive = false;
+let handbrakeSource = null, handbrakeGain = null;
 
 // ===== UI REFS =====
 const scoreEl = document.getElementById('score-val');
@@ -778,7 +780,7 @@ document.addEventListener('keydown', function(e) {
   }
   if (key === 's' || key === 'S') keys.s = true;
   if (key === 'r' || key === 'R') { if (!gameActive) resetGame(); }
-  if (key === ' ') { e.preventDefault(); if (!gameActive) resetGame(); }
+  if (key === ' ') { e.preventDefault(); if (gameActive) keys.handbrake = true; }
 });
 document.addEventListener('keyup', function(e) {
   var key = e.key;
@@ -798,6 +800,7 @@ document.addEventListener('keyup', function(e) {
     }
   }
   if (key === 's' || key === 'S') keys.s = false;
+  if (key === ' ') { keys.handbrake = false; }
 });
 var touchX = null;
 document.addEventListener('touchstart', function(e) {
@@ -1121,6 +1124,7 @@ function createExplosion(x, y, z) {
 // ===== GAME OVER =====
 function gameOver() {
   gameActive = false;
+  stopScreechLoop();
   shakeIntensity = 1.5;
   if (player) {
     createExplosion(player.position.x, 0.3, player.position.z);
@@ -1239,6 +1243,40 @@ function playCrackleSound() {
   noise.start(now);
 }
 
+function startScreechLoop() {
+  if (!audioCtx || handbrakeSource) return;
+  var now = audioCtx.currentTime;
+  var bufSize = Math.floor(audioCtx.sampleRate * 0.2);
+  var buffer = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
+  var data = buffer.getChannelData(0);
+  for (var i = 0; i < bufSize; i++) {
+    data[i] = (Math.random() * 2 - 1) * (1 - i / bufSize);
+  }
+  var noise = audioCtx.createBufferSource();
+  noise.buffer = buffer;
+  noise.loop = true;
+  var filter = audioCtx.createBiquadFilter();
+  filter.type = 'bandpass';
+  filter.frequency.setValueAtTime(2500, now);
+  filter.Q.setValueAtTime(1.5, now);
+  var gain = audioCtx.createGain();
+  gain.gain.setValueAtTime(0.10, now);
+  noise.connect(filter);
+  filter.connect(gain);
+  gain.connect(audioCtx.destination);
+  noise.start(now);
+  handbrakeSource = noise;
+  handbrakeGain = gain;
+}
+
+function stopScreechLoop() {
+  if (handbrakeSource) {
+    try { handbrakeSource.stop(); } catch(e) {}
+    handbrakeSource = null;
+    handbrakeGain = null;
+  }
+}
+
 function showFlame() {
   var el = document.getElementById('flame-glow');
   el.classList.add('fire');
@@ -1310,13 +1348,23 @@ function updateGame(dt) {
 
   if (keys.w) speedMultiplier += ACCEL_RATE * dt;
   if (keys.s) speedMultiplier -= BRAKE_RATE * dt;
+  if (keys.handbrake) speedMultiplier -= 6.0 * dt;
   speedMultiplier = Math.max(SPEED_MULT_MIN, Math.min(SPEED_MULT_MAX, speedMultiplier));
-  if (!keys.w && !keys.s) {
+  if (!keys.w && !keys.s && !keys.handbrake) {
     speedMultiplier += (1.0 - speedMultiplier) * Math.min(1, 0.8 * dt);
   }
 
   var currentSpeed = Math.min(enemySpeed * speedMultiplier, maxSpeedCap / 6.0);
   speedFactor = currentSpeed / ENEMY_BASE_SPEED;
+
+  if (keys.handbrake && speedFactor > 0.5 && !handbrakeSoundActive) {
+    startScreechLoop();
+    handbrakeSoundActive = true;
+  }
+  if ((!keys.handbrake || speedFactor <= 0.5) && handbrakeSoundActive) {
+    stopScreechLoop();
+    handbrakeSoundActive = false;
+  }
 
   if (roadTexture) {
     roadTexture.offset.y += dt * currentSpeed * (16 / ROAD_LENGTH);
