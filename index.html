@@ -79,31 +79,57 @@ canvas { display: block; }
 #restart-btn:hover { transform: scale(1.05); box-shadow: 0 6px 30px rgba(255,200,0,0.5); }
 #restart-btn:active { transform: scale(0.95); }
 #speed-indicator {
-  position: absolute; top: 20px; right: 24px;
-  color: rgba(255,255,255,0.6); font-size: 13px;
+  position: absolute; top: 100px; right: 20px;
+  pointer-events: none;
+  background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(6px);
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.08);
+  min-width: 140px;
+}
+#speed-indicator .speed-top {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-bottom: 2px;
+}
+#speed-indicator .speed-label {
+  color: rgba(255,255,255,0.4); font-size: 11px; letter-spacing: 1px;
   text-shadow: 0 1px 4px rgba(0,0,0,0.8);
-  text-align: right;
+}
+#speed-indicator .speed-value {
+  color: #fff; font-size: 26px; font-weight: 700;
+  text-shadow: 0 0 20px rgba(100,200,255,0.3);
+}
+#speed-indicator .speed-unit {
+  color: rgba(255,255,255,0.4); font-size: 13px; margin-left: 2px;
 }
 #speed-indicator .speed-bar {
-  width: 80px; height: 4px; background: rgba(255,255,255,0.15);
-  border-radius: 2px; margin-top: 4px; overflow: hidden;
+  width: 100%; height: 3px; background: rgba(255,255,255,0.1);
+  border-radius: 2px; overflow: hidden; margin-top: 6px;
 }
 #speed-indicator .speed-fill {
   height: 100%; background: linear-gradient(90deg, #44ff44, #ffcc00, #ff3344);
   border-radius: 2px; transition: width 0.3s;
 }
 #speed-indicator .rpm-row {
-  display: flex; align-items: center; gap: 6px; margin-top: 6px;
-  font-size: 11px; color: rgba(255,200,100,0.7);
-  justify-content: flex-end;
+  display: flex; align-items: center; gap: 6px; margin-top: 8px;
+  justify-content: space-between;
+}
+#speed-indicator .rpm-label {
+  color: rgba(255,200,100,0.5); font-size: 10px; letter-spacing: 1px;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.8);
 }
 #speed-indicator .rpm-bar {
-  width: 60px; height: 3px; background: rgba(255,200,100,0.12);
+  flex: 1; height: 2px; background: rgba(255,200,100,0.1);
   border-radius: 2px; overflow: hidden;
 }
 #speed-indicator .rpm-fill {
   height: 100%; background: linear-gradient(90deg, #ff8800, #ff3344);
   border-radius: 2px; transition: width 0.15s;
+}
+#speed-indicator .rpm-num {
+  color: rgba(255,200,100,0.6); font-size: 11px; font-weight: 600;
+  min-width: 28px; text-align: right;
 }
 #flash-overlay {
   position: absolute; top: 0; left: 0; width: 100%; height: 100%;
@@ -113,7 +139,7 @@ canvas { display: block; }
 }
 #flash-overlay.hit { background: rgba(255,0,0,0.3); }
 #menu-btn {
-  position: absolute; top: 20px; right: 120px;
+  position: absolute; top: 20px; left: 24px;
   pointer-events: all; cursor: pointer;
   background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
   color: #fff; padding: 6px 14px; font-size: 13px; font-weight: 600;
@@ -190,7 +216,18 @@ canvas { display: block; }
 <div id="ui">
   <div id="score">SCORE <span id="score-val">0</span></div>
   <div id="highscore">BEST <span id="highscore-val">0</span></div>
-  <div id="speed-indicator"><span id="speed-val">0</span> km/h <div class="speed-bar"><div class="speed-fill" id="speed-fill" style="width:20%"></div></div><div class="rpm-row"><span id="rpm-val">0</span> RPM <div class="rpm-bar"><div class="rpm-fill" id="rpm-fill" style="width:10%"></div></div></div></div>
+  <div id="speed-indicator">
+    <div class="speed-top">
+      <span class="speed-label">SPEED</span>
+      <span><span class="speed-value" id="speed-val">0</span><span class="speed-unit">km/h</span></span>
+    </div>
+    <div class="speed-bar"><div class="speed-fill" id="speed-fill" style="width:20%"></div></div>
+    <div class="rpm-row">
+      <span class="rpm-label">RPM</span>
+      <div class="rpm-bar"><div class="rpm-fill" id="rpm-fill" style="width:10%"></div></div>
+      <span class="rpm-num" id="rpm-val">0</span>
+    </div>
+  </div>
   <div id="controls-hint">← → or A/D · W accelerate · S brake · R restart</div>
   <div id="game-over">
     <h1>GAME OVER</h1>
@@ -235,8 +272,8 @@ const SPAWN_INTERVAL_MIN = 0.4;
 const SCORE_PER_SECOND = 10;
 const PASS_BONUS = 50;
 const SPEED_MULT_MIN = 0.2;
-const SPEED_MULT_MAX = 2.5;
-const ACCEL_RATE = 1.8;
+const SPEED_MULT_MAX = 3.0;
+const ACCEL_RATE = 3.5;
 const BRAKE_RATE = 2.4;
 const CAR_SCALE = 0.8;
 
@@ -1315,7 +1352,7 @@ function updateGame(dt) {
 
   score += SCORE_PER_SECOND * dt;
   scoreEl.textContent = Math.floor(score);
-  var speedKmh = Math.round(currentSpeed * 4.0);
+  var speedKmh = Math.round(currentSpeed * 5.0);
   speedVal.textContent = Math.min(250, speedKmh);
   var speedPct = Math.min(100, (speedMultiplier / SPEED_MULT_MAX) * 100);
   speedFill.style.width = speedPct + '%';
