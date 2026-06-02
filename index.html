@@ -363,6 +363,7 @@ let smokeParticles = [];
 let smokeTexture = null;
 let handbrakeBackfireTimer = 0;
 let motionSpeedFactor = 0;
+let actualSpeed = 0;
 
 // ===== UI REFS =====
 const scoreEl = document.getElementById('score-val');
@@ -1297,6 +1298,7 @@ function resetGame() {
   totalTime = 0;
   passedEnemies = 0;
   speedMultiplier = 1.0;
+  actualSpeed = 0;
 
   scoreEl.textContent = '0';
   gameOverEl.classList.remove('show');
@@ -1343,21 +1345,20 @@ function updateGame(dt) {
     speedMultiplier += (1.0 - speedMultiplier) * Math.min(1, 0.5 * dt);
   }
 
-  var currentSpeed = Math.min(enemySpeed * speedMultiplier, maxSpeedCap / 6.0);
-  speedFactor = currentSpeed / ENEMY_BASE_SPEED;
+  var desiredSpeed = Math.min(enemySpeed * speedMultiplier, maxSpeedCap / 6.0);
+  speedFactor = desiredSpeed / ENEMY_BASE_SPEED;
   motionSpeedFactor = speedFactor;
 
-  // Handbrake overrides: car doesn't move
-  // Handbrake smoothly stops the car
+  // Handbrake smoothly stops the car (persistent actualSpeed)
   if (keys.handbrake && !keys.w) {
-    currentSpeed *= Math.max(0, 1 - 1.8 * dt);
-    speedFactor = currentSpeed / ENEMY_BASE_SPEED;
-  }
-  if (keys.w && keys.handbrake) {
+    actualSpeed = Math.max(0, actualSpeed - 20 * dt);
+  } else if (keys.w && keys.handbrake) {
     speedMultiplier = SPEED_MULT_MAX;
-    currentSpeed *= Math.max(0, 1 - 2.2 * dt);
-    speedFactor = currentSpeed / ENEMY_BASE_SPEED;
+    actualSpeed = Math.max(0, actualSpeed - 24 * dt);
+  } else {
+    actualSpeed = desiredSpeed;
   }
+  var currentSpeed = actualSpeed;
 
   // Handbrake smoke
   if (player && keys.handbrake && motionSpeedFactor > 0.3) {
