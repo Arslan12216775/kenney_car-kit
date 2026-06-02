@@ -139,7 +139,7 @@ canvas { display: block; }
 }
 #flash-overlay.hit { background: rgba(255,0,0,0.3); }
 #menu-btn {
-  position: absolute; top: 20px; left: 24px;
+  position: absolute; top: 84px; left: 24px;
   pointer-events: all; cursor: pointer;
   background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
   color: #fff; padding: 6px 14px; font-size: 13px; font-weight: 600;
@@ -1172,40 +1172,61 @@ function playCrashSound() {
 function playCrackleSound() {
   if (!audioCtx) return;
   var now = audioCtx.currentTime;
-  var len = 0.08 + Math.random() * 0.12;
+  var len = 0.1 + Math.random() * 0.15;
 
-  // Sub-bass thump
+  // Master compressor for punch
+  var compressor = audioCtx.createDynamicsCompressor();
+  compressor.threshold.setValueAtTime(-12, now);
+  compressor.ratio.setValueAtTime(6, now);
+  compressor.attack.setValueAtTime(0.001, now);
+  compressor.release.setValueAtTime(0.05, now);
+  compressor.connect(audioCtx.destination);
+
+  // Sub-bass thump - dual oscillators
   var osc = audioCtx.createOscillator();
   osc.type = 'sine';
-  osc.frequency.setValueAtTime(60 + Math.random() * 40, now);
-  osc.frequency.exponentialRampToValueAtTime(25, now + len);
+  osc.frequency.setValueAtTime(50 + Math.random() * 30, now);
+  osc.frequency.exponentialRampToValueAtTime(20, now + len);
   var oscGain = audioCtx.createGain();
-  oscGain.gain.setValueAtTime(0.5, now);
+  oscGain.gain.setValueAtTime(0.7, now);
   oscGain.gain.exponentialRampToValueAtTime(0.001, now + len);
   osc.connect(oscGain);
-  oscGain.connect(audioCtx.destination);
+  oscGain.connect(compressor);
   osc.start(now);
   osc.stop(now + len);
 
-  // Sharp crack
+  // Second osc for richness
+  var osc2 = audioCtx.createOscillator();
+  osc2.type = 'sawtooth';
+  osc2.frequency.setValueAtTime(180 + Math.random() * 80, now);
+  osc2.frequency.exponentialRampToValueAtTime(60, now + len);
+  var osc2Gain = audioCtx.createGain();
+  osc2Gain.gain.setValueAtTime(0.25, now);
+  osc2Gain.gain.exponentialRampToValueAtTime(0.001, now + len);
+  osc2.connect(osc2Gain);
+  osc2Gain.connect(compressor);
+  osc2.start(now);
+  osc2.stop(now + len);
+
+  // Explosive noise burst
   var bufSize = Math.floor(audioCtx.sampleRate * len);
   var buffer = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
   var data = buffer.getChannelData(0);
   for (var i = 0; i < bufSize; i++) {
-    data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufSize, 1.5);
+    data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufSize, 1.2);
   }
   var noise = audioCtx.createBufferSource();
   noise.buffer = buffer;
   var noiseGain = audioCtx.createGain();
-  noiseGain.gain.setValueAtTime(0.4, now);
+  noiseGain.gain.setValueAtTime(0.55, now);
   noiseGain.gain.exponentialRampToValueAtTime(0.001, now + len);
   var filter = audioCtx.createBiquadFilter();
   filter.type = 'lowpass';
-  filter.frequency.setValueAtTime(1500, now);
-  filter.frequency.exponentialRampToValueAtTime(200, now + len);
+  filter.frequency.setValueAtTime(2500, now);
+  filter.frequency.exponentialRampToValueAtTime(100, now + len);
   noise.connect(filter);
   filter.connect(noiseGain);
-  noiseGain.connect(audioCtx.destination);
+  noiseGain.connect(compressor);
   noise.start(now);
 }
 
