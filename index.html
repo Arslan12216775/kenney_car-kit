@@ -92,6 +92,19 @@ canvas { display: block; }
   height: 100%; background: linear-gradient(90deg, #44ff44, #ffcc00, #ff3344);
   border-radius: 2px; transition: width 0.3s;
 }
+#speed-indicator .rpm-row {
+  display: flex; align-items: center; gap: 6px; margin-top: 6px;
+  font-size: 11px; color: rgba(255,200,100,0.7);
+  justify-content: flex-end;
+}
+#speed-indicator .rpm-bar {
+  width: 60px; height: 3px; background: rgba(255,200,100,0.12);
+  border-radius: 2px; overflow: hidden;
+}
+#speed-indicator .rpm-fill {
+  height: 100%; background: linear-gradient(90deg, #ff8800, #ff3344);
+  border-radius: 2px; transition: width 0.15s;
+}
 #flash-overlay {
   position: absolute; top: 0; left: 0; width: 100%; height: 100%;
   pointer-events: none;
@@ -177,7 +190,7 @@ canvas { display: block; }
 <div id="ui">
   <div id="score">SCORE <span id="score-val">0</span></div>
   <div id="highscore">BEST <span id="highscore-val">0</span></div>
-  <div id="speed-indicator"><span id="speed-val">0</span> km/h <div class="speed-bar"><div class="speed-fill" id="speed-fill" style="width:20%"></div></div></div>
+  <div id="speed-indicator"><span id="speed-val">0</span> km/h <div class="speed-bar"><div class="speed-fill" id="speed-fill" style="width:20%"></div></div><div class="rpm-row"><span id="rpm-val">0</span> RPM <div class="rpm-bar"><div class="rpm-fill" id="rpm-fill" style="width:10%"></div></div></div></div>
   <div id="controls-hint">← → or A/D · W accelerate · S brake · R restart</div>
   <div id="game-over">
     <h1>GAME OVER</h1>
@@ -262,6 +275,8 @@ let totalTime = 0;
 let passedEnemies = 0;
 let keys = { left: false, right: false, w: false, s: false };
 let speedMultiplier = 1.0;
+let speedFactor = 1.0;
+let wasGasPressed = false;
 let carModels = {};
 let wheelModel = null;
 let roadsideModels = {};
@@ -283,6 +298,8 @@ const restartBtn = document.getElementById('restart-btn');
 const flashOverlay = document.getElementById('flash-overlay');
 const speedFill = document.getElementById('speed-fill');
 const speedVal = document.getElementById('speed-val');
+const rpmFill = document.getElementById('rpm-fill');
+const rpmVal = document.getElementById('rpm-val');
 const loadFill = document.getElementById('load-fill');
 const loadingEl = document.getElementById('loading');
 const menuBtn = document.getElementById('menu-btn');
@@ -683,7 +700,10 @@ document.addEventListener('keydown', function(e) {
   var key = e.key;
   if (key === 'ArrowLeft' || key === 'a' || key === 'A') keys.left = true;
   if (key === 'ArrowRight' || key === 'd' || key === 'D') keys.right = true;
-  if (key === 'w' || key === 'W') keys.w = true;
+  if (key === 'w' || key === 'W') {
+    keys.w = true;
+    wasGasPressed = true;
+  }
   if (key === 's' || key === 'S') keys.s = true;
   if (key === 'r' || key === 'R') { if (!gameActive) resetGame(); }
   if (key === ' ') { e.preventDefault(); if (!gameActive) resetGame(); }
@@ -692,7 +712,16 @@ document.addEventListener('keyup', function(e) {
   var key = e.key;
   if (key === 'ArrowLeft' || key === 'a' || key === 'A') keys.left = false;
   if (key === 'ArrowRight' || key === 'd' || key === 'D') keys.right = false;
-  if (key === 'w' || key === 'W') keys.w = false;
+  if (key === 'w' || key === 'W') {
+    keys.w = false;
+    if (gameActive && speedFactor > 2.0 && wasGasPressed) {
+      wasGasPressed = false;
+      var burstCount = 1 + Math.floor(Math.random() * 3);
+      for (var bi = 0; bi < burstCount; bi++) {
+        (function(d) { setTimeout(function() { playCrackleSound(); }, d); })(bi * 100 + Math.random() * 80);
+      }
+    }
+  }
   if (key === 's' || key === 'S') keys.s = false;
 });
 var touchX = null;
@@ -1100,7 +1129,7 @@ function playCrackleSound() {
   osc.frequency.setValueAtTime(80 + Math.random() * 60, now);
   osc.frequency.exponentialRampToValueAtTime(30, now + len);
   var oscGain = audioCtx.createGain();
-  oscGain.gain.setValueAtTime(0.12, now);
+  oscGain.gain.setValueAtTime(0.25, now);
   oscGain.gain.exponentialRampToValueAtTime(0.001, now + len);
   osc.connect(oscGain);
   oscGain.connect(audioCtx.destination);
@@ -1117,7 +1146,7 @@ function playCrackleSound() {
   var noise = audioCtx.createBufferSource();
   noise.buffer = buffer;
   var noiseGain = audioCtx.createGain();
-  noiseGain.gain.setValueAtTime(0.08, now);
+  noiseGain.gain.setValueAtTime(0.18, now);
   noiseGain.gain.exponentialRampToValueAtTime(0.001, now + len);
   var filter = audioCtx.createBiquadFilter();
   filter.type = 'lowpass';
@@ -1199,7 +1228,7 @@ function updateGame(dt) {
   }
 
   var currentSpeed = enemySpeed * speedMultiplier;
-  var speedFactor = currentSpeed / ENEMY_BASE_SPEED;
+  speedFactor = currentSpeed / ENEMY_BASE_SPEED;
 
   if (roadTexture) {
     roadTexture.offset.y += dt * currentSpeed * (16 / ROAD_LENGTH);
@@ -1290,16 +1319,15 @@ function updateGame(dt) {
   speedVal.textContent = Math.min(250, speedKmh);
   var speedPct = Math.min(100, (speedMultiplier / SPEED_MULT_MAX) * 100);
   speedFill.style.width = speedPct + '%';
+  var rpmRaw = Math.min(speedMultiplier / SPEED_MULT_MAX, 1.0);
+  rpmVal.textContent = Math.round(rpmRaw * 8);
+  rpmFill.style.width = (rpmRaw * 100) + '%';
 
   updateDifficulty(dt);
 
   if (checkCollisions()) { playCrashSound(); stopEngineSound(); gameOver(); return; }
 
   updateEngineSound(speedFactor);
-
-  if (speedFactor > 2.0 && Math.random() < 0.02 * speedFactor) {
-    playCrackleSound();
-  }
 
   // Disco animation
   var t = totalTime;
