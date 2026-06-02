@@ -361,6 +361,9 @@ let audioCtx = null, engineOsc = null, engineGain = null;
 let maxSpeedCap = 250;
 let handbrakeSoundActive = false;
 let handbrakeSource = null, handbrakeGain = null;
+let smokeParticles = [];
+let smokeTexture = null;
+let handbrakeBackfireTimer = 0;
 
 // ===== UI REFS =====
 const scoreEl = document.getElementById('score-val');
@@ -995,6 +998,19 @@ function initScene() {
   createRoad();
   createParticles();
 
+  // Smoke texture for handbrake
+  var smCanvas = document.createElement('canvas');
+  smCanvas.width = 64; smCanvas.height = 64;
+  var smCtx = smCanvas.getContext('2d');
+  var grad = smCtx.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grad.addColorStop(0, 'rgba(200,200,200,1)');
+  grad.addColorStop(0.2, 'rgba(180,180,180,0.8)');
+  grad.addColorStop(0.5, 'rgba(140,140,140,0.4)');
+  grad.addColorStop(1, 'rgba(100,100,100,0)');
+  smCtx.fillStyle = grad;
+  smCtx.fillRect(0, 0, 64, 64);
+  smokeTexture = new THREE.CanvasTexture(smCanvas);
+
   window.addEventListener('resize', onResize);
   restartBtn.addEventListener('click', resetGame);
 }
@@ -1122,9 +1138,18 @@ function createExplosion(x, y, z) {
 }
 
 // ===== GAME OVER =====
+function clearSmoke() {
+  for (var si = 0; si < smokeParticles.length; si++) {
+    scene.remove(smokeParticles[si]);
+    smokeParticles[si].material.dispose();
+  }
+  smokeParticles = [];
+}
+
 function gameOver() {
   gameActive = false;
   stopScreechLoop();
+  clearSmoke();
   shakeIntensity = 1.5;
   if (player) {
     createExplosion(player.position.x, 0.3, player.position.z);
@@ -1246,32 +1271,52 @@ function playCrackleSound() {
 function startScreechLoop() {
   if (!audioCtx || handbrakeSource) return;
   var now = audioCtx.currentTime;
-  var bufSize = Math.floor(audioCtx.sampleRate * 0.2);
+  // Squeal oscillator
+  var osc = audioCtx.createOscillator();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(1200 - speedFactor * 100, now);
+  osc.frequency.linearRampToValueAtTime(900 - speedFactor * 100, now + 0.15);
+  var oscGain = audioCtx.createGain();
+  oscGain.gain.setValueAtTime(0.05, now);
+  var oscFilter = audioCtx.createBiquadFilter();
+  oscFilter.type = 'lowpass';
+  oscFilter.frequency.setValueAtTime(2000, now);
+  osc.connect(oscFilter);
+  oscFilter.connect(oscGain);
+  // Screech noise
+  var bufSize = Math.floor(audioCtx.sampleRate * 0.12);
   var buffer = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
   var data = buffer.getChannelData(0);
   for (var i = 0; i < bufSize; i++) {
-    data[i] = (Math.random() * 2 - 1) * (1 - i / bufSize);
+    data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufSize, 0.7);
   }
   var noise = audioCtx.createBufferSource();
   noise.buffer = buffer;
   noise.loop = true;
-  var filter = audioCtx.createBiquadFilter();
-  filter.type = 'bandpass';
-  filter.frequency.setValueAtTime(2500, now);
-  filter.Q.setValueAtTime(1.5, now);
-  var gain = audioCtx.createGain();
-  gain.gain.setValueAtTime(0.10, now);
-  noise.connect(filter);
-  filter.connect(gain);
-  gain.connect(audioCtx.destination);
+  var noiseFilter = audioCtx.createBiquadFilter();
+  noiseFilter.type = 'bandpass';
+  noiseFilter.frequency.setValueAtTime(3500, now);
+  noiseFilter.Q.setValueAtTime(0.6, now);
+  var noiseGain = audioCtx.createGain();
+  noiseGain.gain.setValueAtTime(0.10, now);
+  noise.connect(noiseFilter);
+  noiseFilter.connect(noiseGain);
+  // Mix
+  var masterGain = audioCtx.createGain();
+  masterGain.gain.setValueAtTime(1, now);
+  oscGain.connect(masterGain);
+  noiseGain.connect(masterGain);
+  masterGain.connect(audioCtx.destination);
+  osc.start(now);
   noise.start(now);
-  handbrakeSource = noise;
-  handbrakeGain = gain;
+  handbrakeSource = { osc: osc, noise: noise, masterGain: masterGain };
+  handbrakeGain = masterGain;
 }
 
 function stopScreechLoop() {
   if (handbrakeSource) {
-    try { handbrakeSource.stop(); } catch(e) {}
+    try { handbrakeSource.osc.stop(); } catch(e) {}
+    try { handbrakeSource.noise.stop(); } catch(e) {}
     handbrakeSource = null;
     handbrakeGain = null;
   }
@@ -1297,6 +1342,7 @@ function resetGame() {
   lastRoadsideZ = -20;
   if (player) { scene.remove(player); player = null; }
 
+  clearSmoke();
   score = 0;
   enemySpeed = ENEMY_BASE_SPEED;
   spawnInterval = SPAWN_INTERVAL_INIT;
@@ -1357,6 +1403,10 @@ function updateGame(dt) {
   var currentSpeed = Math.min(enemySpeed * speedMultiplier, maxSpeedCap / 6.0);
   speedFactor = currentSpeed / ENEMY_BASE_SPEED;
 
+  if (handbrakeSource && keys.handbrake && speedFactor > 0.5) {
+    try { handbrakeSource.osc.frequency.setValueAtTime(1200 - speedFactor * 100, audioCtx.currentTime); } catch(e) {}
+  }
+
   if (keys.handbrake && speedFactor > 0.5 && !handbrakeSoundActive) {
     startScreechLoop();
     handbrakeSoundActive = true;
@@ -1364,6 +1414,56 @@ function updateGame(dt) {
   if ((!keys.handbrake || speedFactor <= 0.5) && handbrakeSoundActive) {
     stopScreechLoop();
     handbrakeSoundActive = false;
+  }
+
+  // Handbrake smoke
+  if (keys.handbrake && speedFactor > 0.3) {
+    for (var si = 0; si < 3; si++) {
+      var smMat = new THREE.SpriteMaterial({ map: smokeTexture, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false });
+      var sprite = new THREE.Sprite(smMat);
+      sprite.position.set(
+        player.position.x + (Math.random() - 0.5) * 0.8,
+        0.05 + Math.random() * 0.2,
+        player.position.z - 0.8 + (Math.random() - 0.5) * 0.5
+      );
+      sprite.scale.setScalar(0.1 + Math.random() * 0.15);
+      sprite.userData = {
+        vx: (Math.random() - 0.5) * 0.3,
+        vy: 0.3 + Math.random() * 0.4,
+        vz: -0.2 - Math.random() * 0.3,
+        life: 0.6 + Math.random() * 0.4,
+        maxLife: 0.6 + Math.random() * 0.4
+      };
+      scene.add(sprite);
+      smokeParticles.push(sprite);
+    }
+  }
+  for (var si = smokeParticles.length - 1; si >= 0; si--) {
+    var sp = smokeParticles[si];
+    sp.userData.life -= dt;
+    sp.position.x += sp.userData.vx * dt;
+    sp.position.y += sp.userData.vy * dt;
+    sp.position.z += sp.userData.vz * dt;
+    var lifeRatio = Math.max(0, sp.userData.life / sp.userData.maxLife);
+    sp.material.opacity = lifeRatio * 0.5;
+    sp.scale.setScalar(0.2 + (1 - lifeRatio) * 0.6);
+    if (sp.userData.life <= 0) {
+      scene.remove(sp);
+      sp.material.dispose();
+      smokeParticles.splice(si, 1);
+    }
+  }
+
+  // Backfire on handbrake + gas
+  if (keys.handbrake && keys.w && speedFactor > 1.8 && gameActive) {
+    handbrakeBackfireTimer -= dt;
+    if (handbrakeBackfireTimer <= 0) {
+      playCrackleSound();
+      showFlame();
+      handbrakeBackfireTimer = 0.15 + Math.random() * 0.2;
+    }
+  } else {
+    handbrakeBackfireTimer = 0;
   }
 
   if (roadTexture) {
