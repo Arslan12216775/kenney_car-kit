@@ -307,7 +307,7 @@ const SCORE_PER_SECOND = 10;
 const PASS_BONUS = 50;
 const SPEED_MULT_MIN = 0.2;
 const SPEED_MULT_MAX = 3.0;
-const ACCEL_RATE = 1.2;
+const ACCEL_RATE = 0.5;
 const BRAKE_RATE = 2.4;
 const CAR_SCALE = 0.8;
 
@@ -1337,11 +1337,12 @@ function updateGame(dt) {
   dt = Math.min(dt, 0.05);
   totalTime += dt;
 
-  if (keys.w) speedMultiplier += ACCEL_RATE * dt;
+  if (keys.w && !keys.handbrake) speedMultiplier += ACCEL_RATE * dt;
   if (keys.s) speedMultiplier -= BRAKE_RATE * dt;
+  if (keys.handbrake && !keys.w) speedMultiplier -= 3.0 * dt;
   speedMultiplier = Math.max(SPEED_MULT_MIN, Math.min(SPEED_MULT_MAX, speedMultiplier));
   if (!keys.w && !keys.s && !keys.handbrake) {
-    speedMultiplier += (1.0 - speedMultiplier) * Math.min(1, 0.5 * dt);
+    speedMultiplier += (1.0 - speedMultiplier) * Math.min(1, 0.3 * dt);
   }
 
   var desiredSpeed = Math.min(enemySpeed * speedMultiplier, maxSpeedCap / 6.0);
