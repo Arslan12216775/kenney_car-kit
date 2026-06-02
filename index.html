@@ -1272,20 +1272,20 @@ function startScreech() {
   if (!audioCtx || screechSource) return;
   var now = audioCtx.currentTime;
   var osc = audioCtx.createOscillator();
-  osc.type = 'sawtooth';
-  osc.frequency.setValueAtTime(1000, now);
+  osc.type = 'square';
+  osc.frequency.setValueAtTime(3800, now);
   var oscGain = audioCtx.createGain();
-  oscGain.gain.setValueAtTime(0.02, now);
-  var bufSize = Math.floor(audioCtx.sampleRate * 0.1);
+  oscGain.gain.setValueAtTime(0.015, now);
+  var bufSize = Math.floor(audioCtx.sampleRate * 0.08);
   var buf = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
   var d = buf.getChannelData(0);
   for (var i = 0; i < bufSize; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / bufSize);
   var noise = audioCtx.createBufferSource();
   noise.buffer = buf; noise.loop = true;
   var nf = audioCtx.createBiquadFilter();
-  nf.type = 'bandpass'; nf.frequency.setValueAtTime(3000, now); nf.Q.setValueAtTime(0.5, now);
+  nf.type = 'bandpass'; nf.frequency.setValueAtTime(5500, now); nf.Q.setValueAtTime(0.8, now);
   var noiseGain = audioCtx.createGain();
-  noiseGain.gain.setValueAtTime(0.04, now);
+  noiseGain.gain.setValueAtTime(0.025, now);
   noise.connect(nf); nf.connect(noiseGain);
   var mg = audioCtx.createGain(); mg.gain.setValueAtTime(1, now);
   oscGain.connect(mg); noiseGain.connect(mg); mg.connect(audioCtx.destination);
@@ -1399,7 +1399,7 @@ function updateGame(dt) {
     if (!screechSource) startScreech();
     // update screech pitch with speed
     if (screechSource && screechSource.osc) {
-      try { screechSource.osc.frequency.setValueAtTime(800 + actualSpeed * 8, audioCtx.currentTime); } catch(e) {}
+      try { screechSource.osc.frequency.setValueAtTime(3500 + actualSpeed * 20, audioCtx.currentTime); } catch(e) {}
     }
     for (var si = 0; si < 3; si++) {
       var smMat = new THREE.SpriteMaterial({ map: smokeTexture, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false });
