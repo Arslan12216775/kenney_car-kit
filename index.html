@@ -201,14 +201,14 @@ canvas { display: block; }
   z-index: 10;
 }
 #flame-glow {
-  position: absolute; bottom: 0; left: 0; width: 100%; height: 60px;
+  position: absolute; bottom: 0; left: 0; width: 100%; height: 120px;
   pointer-events: none;
   background: linear-gradient(0deg, rgba(255,150,0,0) 0%, rgba(255,100,0,0) 100%);
   transition: background 0.05s;
   z-index: 5;
 }
 #flame-glow.fire {
-  background: linear-gradient(0deg, rgba(255,200,0,0.5) 0%, rgba(255,100,0,0.15) 40%, rgba(255,50,0,0) 100%);
+  background: linear-gradient(0deg, rgba(255,220,0,0.6) 0%, rgba(255,120,0,0.25) 30%, rgba(255,50,0,0.05) 70%, rgba(255,0,0,0) 100%);
 }
 @keyframes popUp {
   0% { opacity: 1; transform: translateY(0) scale(1); }
@@ -1132,7 +1132,7 @@ function startEngineSound() {
   engineGain = audioCtx.createGain();
   engineOsc.type = 'triangle';
   engineOsc.frequency.setValueAtTime(70, audioCtx.currentTime);
-  engineGain.gain.setValueAtTime(0.055, audioCtx.currentTime);
+  engineGain.gain.setValueAtTime(0.035, audioCtx.currentTime);
   engineOsc.connect(engineGain);
   engineGain.connect(audioCtx.destination);
   engineOsc.start();
@@ -1142,8 +1142,8 @@ function updateEngineSound(speedFactor) {
   if (!engineOsc || !engineGain) return;
   var freq = 50 + speedFactor * 40;
   engineOsc.frequency.setTargetAtTime(Math.min(freq, 200), audioCtx.currentTime, 0.15);
-  var vol = 0.02 + speedFactor * 0.035;
-  engineGain.gain.setTargetAtTime(Math.min(vol, 0.12), audioCtx.currentTime, 0.1);
+  var vol = 0.01 + speedFactor * 0.02;
+  engineGain.gain.setTargetAtTime(Math.min(vol, 0.07), audioCtx.currentTime, 0.1);
 }
 
 function stopEngineSound() {
@@ -1180,7 +1180,7 @@ function playCrackleSound() {
   osc.frequency.setValueAtTime(70 + Math.random() * 50, now);
   osc.frequency.exponentialRampToValueAtTime(25, now + len);
   var oscGain = audioCtx.createGain();
-  oscGain.gain.setValueAtTime(0.4, now);
+  oscGain.gain.setValueAtTime(0.65, now);
   oscGain.gain.exponentialRampToValueAtTime(0.001, now + len);
   osc.connect(oscGain);
   oscGain.connect(audioCtx.destination);
@@ -1197,7 +1197,7 @@ function playCrackleSound() {
   var noise = audioCtx.createBufferSource();
   noise.buffer = buffer;
   var noiseGain = audioCtx.createGain();
-  noiseGain.gain.setValueAtTime(0.25, now);
+  noiseGain.gain.setValueAtTime(0.45, now);
   noiseGain.gain.exponentialRampToValueAtTime(0.001, now + len);
   var filter = audioCtx.createBiquadFilter();
   filter.type = 'lowpass';
