@@ -284,7 +284,7 @@ const SCORE_PER_SECOND = 10;
 const PASS_BONUS = 50;
 const SPEED_MULT_MIN = 0.2;
 const SPEED_MULT_MAX = 3.0;
-const ACCEL_RATE = 3.5;
+const ACCEL_RATE = 2.2;
 const BRAKE_RATE = 2.4;
 const CAR_SCALE = 0.8;
 
@@ -1019,7 +1019,7 @@ function updateDifficulty(dt) {
   difficultyTimer += dt;
   if (difficultyTimer >= DIFFICULTY_INTERVAL) {
     difficultyTimer -= DIFFICULTY_INTERVAL;
-    enemySpeed = Math.min(enemySpeed * 1.12, ENEMY_BASE_SPEED * ENEMY_MAX_SPEED_MULT);
+    enemySpeed = Math.min(enemySpeed * 1.2, ENEMY_BASE_SPEED * ENEMY_MAX_SPEED_MULT);
     spawnInterval = Math.max(spawnInterval * 0.92, SPAWN_INTERVAL_MIN);
   }
 }
@@ -1281,7 +1281,7 @@ function updateGame(dt) {
   if (keys.s) speedMultiplier -= BRAKE_RATE * dt;
   speedMultiplier = Math.max(SPEED_MULT_MIN, Math.min(SPEED_MULT_MAX, speedMultiplier));
   if (!keys.w && !keys.s) {
-    speedMultiplier += (1.0 - speedMultiplier) * Math.min(1, 1.2 * dt);
+    speedMultiplier += (1.0 - speedMultiplier) * Math.min(1, 0.8 * dt);
   }
 
   var currentSpeed = enemySpeed * speedMultiplier;
@@ -1372,7 +1372,7 @@ function updateGame(dt) {
 
   score += SCORE_PER_SECOND * dt;
   scoreEl.textContent = Math.floor(score);
-  var speedKmh = Math.round(currentSpeed * 5.0);
+  var speedKmh = Math.round(currentSpeed * 6.0);
   speedVal.textContent = Math.min(250, speedKmh);
   var speedPct = Math.min(100, (speedMultiplier / SPEED_MULT_MAX) * 100);
   speedFill.style.width = speedPct + '%';
