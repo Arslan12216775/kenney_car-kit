@@ -1275,7 +1275,7 @@ function startScreech() {
   osc.type = 'sawtooth';
   osc.frequency.setValueAtTime(1200, now);
   var oscGain = audioCtx.createGain();
-  oscGain.gain.setValueAtTime(0.04, now);
+  oscGain.gain.setValueAtTime(0.008, now);
   var oscFilter = audioCtx.createBiquadFilter();
   oscFilter.type = 'lowpass';
   oscFilter.frequency.setValueAtTime(2500, now);
@@ -1299,7 +1299,7 @@ function startScreech() {
   var nf = audioCtx.createBiquadFilter();
   nf.type = 'bandpass'; nf.frequency.setValueAtTime(2200, now); nf.Q.setValueAtTime(0.4, now);
   var noiseGain = audioCtx.createGain();
-  noiseGain.gain.setValueAtTime(0.035, now);
+  noiseGain.gain.setValueAtTime(0.008, now);
   noise.connect(nf); nf.connect(noiseGain);
   var mg = audioCtx.createGain(); mg.gain.setValueAtTime(1, now);
   oscGain.connect(mg); noiseGain.connect(mg); mg.connect(audioCtx.destination);
